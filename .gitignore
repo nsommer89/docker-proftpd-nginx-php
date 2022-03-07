@@ -1,0 +1,6 @@
+# mysql and ftp data
+data/
+.env
+
+# ...
+.idea/

@@ -1,0 +1,97 @@
+version: '3.7'
+
+volumes:
+  data:
+
+networks:
+  batmannet:
+
+services:
+  site:
+    build:
+      context: .
+      dockerfile: nginx.dockerfile
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    container_name: nginx
+    ports:
+      - 80:80
+    volumes:
+      - ./src:/var/www/html:delegated
+      - ./data/userhomes:/home
+    depends_on:
+      - php
+      - mysql
+    networks:
+      - batmannet
+    environment:
+      PHP_OPCACHE_VALIDATE_TIMESTAMPS: 1
+
+  mysql:
+    image: mariadb:latest
+    container_name: mysql
+    restart: unless-stopped
+    tty: true
+    ports:
+      - 3306:3306
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    networks:
+      - batmannet
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+  php:
+    build:
+      context: .
+      dockerfile: php.dockerfile
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    container_name: php
+    volumes:
+      - ./src:/var/www/html:delegated
+    networks:
+      - batmannet
+
+  phpmyadmin:
+    build:
+      context: .
+      dockerfile: phpmyadmin.dockerfile
+    container_name: pma
+    depends_on:
+      - mysql
+    links:
+      - mysql
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      PMA_ARBITRARY: 1
+    restart: always
+    networks:
+      - batmannet
+    ports:
+      - 8081:80
+
+  proftpd:
+    build:
+      context: .
+      dockerfile: proftpd.dockerfile
+      args:
+        - UID=${UID:-1000}
+        - GID=${GID:-1000}
+    container_name: ftp
+    volumes:
+      - ./proftpd/proftpd.conf:/usr/local/etc/proftpd.conf
+      - ./data/userhomes:/home
+      - ./nginx/sites/:/etc/nginx/conf.d/
+    ports:
+      - "20:20"
+      - "21:21"
+      - "60000-60100:60000-60100"
